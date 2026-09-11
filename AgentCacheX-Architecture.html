@@ -1,0 +1,524 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>AgentCacheX | Architecture and flow</title>
+  <style>
+    :root { color-scheme: dark; --bg: #080f20; --panel: #101c32; --text: #edf3ff; --muted: #a6b6d0; --line: #30425f; --mint: #53e0b6; --amber: #ffca78; --purple: #bfacff; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.55 "Segoe UI", Arial, sans-serif; }
+    header, main, footer { max-width: 1560px; margin: auto; padding: 24px 32px; }
+    header { padding-bottom: 16px; }
+    .eyebrow { color: var(--mint); font-size: 12px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; }
+    h1 { margin: 5px 0; font-size: clamp(28px, 4vw, 44px); letter-spacing: -.04em; }
+    p { margin: 8px 0; }
+    .subtitle, .hint, footer { color: var(--muted); }
+    .toolbar { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; margin-bottom: 18px; }
+    nav, .controls { display: flex; gap: 7px; flex-wrap: wrap; align-items: center; }
+    button { border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px; color: var(--text); background: var(--panel); cursor: pointer; font: inherit; font-size: 13px; }
+    button:hover { border-color: var(--mint); }
+    button:focus-visible { outline: 3px solid var(--mint); outline-offset: 3px; }
+    button[aria-pressed="true"] { background: #193e3d; border-color: var(--mint); color: #b8ffe6; }
+    #zoom { min-width: 46px; text-align: center; font-variant-numeric: tabular-nums; }
+    .intro { display: flex; justify-content: space-between; align-items: baseline; gap: 20px; flex-wrap: wrap; }
+    h2 { margin: 0; font-size: 23px; }
+    .legend { display: flex; flex-wrap: wrap; gap: 16px; margin: 14px 0; font-size: 12px; color: var(--muted); }
+    .legend span::before { content: ""; display: inline-block; width: 23px; border-top: 3px solid #86aef9; margin: 0 7px 3px 0; }
+    .legend .fresh::before { border-color: var(--mint); }
+    .legend .refresh::before { border-color: var(--amber); }
+    .legend .optional::before { border-color: var(--purple); border-top-style: dashed; }
+    .legend .change::before { border-color: #ff96a8; border-top-style: dashed; }
+    #viewport { border: 1px solid var(--line); border-radius: 14px; overflow: auto; background: #0c1527; padding: 16px; }
+    canvas { display: block; margin: auto; }
+    .notes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 18px; }
+    .note { padding: 17px 19px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; }
+    .note h3 { margin: 0 0 6px; color: var(--mint); font-size: 14px; }
+    .note p { margin: 0; color: var(--muted); font-size: 13px; }
+    details { margin-top: 20px; color: var(--muted); }
+    summary { cursor: pointer; }
+    #text-flow { columns: 2; column-gap: 42px; font-size: 13px; }
+    #text-flow p { break-inside: avoid; }
+    #error { border: 1px solid #ff96a8; color: #ffd7df; padding: 16px; margin-bottom: 16px; }
+    a { color: #a7c8ff; }
+    footer { font-size: 12px; padding-top: 0; }
+    @media (max-width: 800px) { header, main, footer { padding-left: 16px; padding-right: 16px; } .notes { grid-template-columns: 1fr; } #text-flow { columns: 1; } }
+    @media print {
+      @page { size: A3 landscape; margin: 12mm; }
+      body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+      header, main, footer { padding: 8px 0; }
+      h1 { font-size: 25px; }
+      .toolbar, details, .hint, #error { display: none !important; }
+      #viewport { overflow: visible; padding: 0; border: none; }
+      canvas { width: 100% !important; height: auto !important; max-width: 100%; }
+      .notes { break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="eyebrow">AgentCacheX / Proposed high-level design</div>
+    <h1>Reuse evidence. Keep the answer current.</h1>
+    <p class="subtitle">Three connected views of the request path, source-aware storage, and cross-developer reuse.</p>
+  </header>
+  <main>
+    <div class="toolbar">
+      <nav aria-label="Architecture views">
+        <button type="button" data-view="request" aria-pressed="true">1. Request flow</button>
+        <button type="button" data-view="state" aria-pressed="false">2. Storage &amp; invalidation</button>
+        <button type="button" data-view="team" aria-pressed="false">3. Team sharing</button>
+      </nav>
+      <div class="controls" aria-label="Diagram controls">
+        <button type="button" id="fit">Fit</button>
+        <button type="button" id="out" aria-label="Zoom out">-</button>
+        <output id="zoom" aria-live="polite"></output>
+        <button type="button" id="in" aria-label="Zoom in">+</button>
+        <button type="button" id="export">Download Mermaid</button>
+        <button type="button" id="print">Print / PDF</button>
+      </div>
+    </div>
+    <div id="error" role="alert" hidden></div>
+    <div class="intro">
+      <h2 id="view-title"></h2>
+      <span class="hint">Offline diagram. No external scripts, fonts, or network requests.</span>
+    </div>
+    <p id="view-caption" class="subtitle"></p>
+    <div class="legend" aria-label="Diagram legend">
+      <span>Request / data flow</span>
+      <span class="fresh">Fresh evidence / answer path</span>
+      <span class="refresh">Cold miss / partial refresh</span>
+      <span class="change">Change / invalidation</span>
+      <span class="optional">Optional / later deployment</span>
+    </div>
+    <div id="viewport">
+      <canvas id="diagram" role="img" aria-describedby="view-caption"></canvas>
+    </div>
+    <div id="notes" class="notes"></div>
+    <details>
+      <summary>Accessible component and connection list</summary>
+      <div id="text-flow"></div>
+    </details>
+    <output id="diagram-check" hidden></output>
+    <noscript>This diagram needs JavaScript enabled. It runs entirely locally and loads no external resources.</noscript>
+  </main>
+  <footer>
+    Based on <a href="AgentCacheX-High-Level-Design.md">AgentCacheX-High-Level-Design.md</a>.
+    Architecture proposal, not an implemented system. Saved files are the initial scope; editor buffers require an explicit adapter.
+  </footer>
+  <script>
+    "use strict";
+    const graphs = {
+      request: {
+        title: "01 / Cold, warm, and partial request flow",
+        caption: "The existing coding agent remains in control. AgentCacheX returns compact, cited context; it does not blindly replay an answer.",
+        width: 1500, height: 1320,
+        nodes: [
+          { id: "agent", x: 550, y: 35, w: 360, h: 110, title: "Developer + coding agent", lines: ["Question, explicit file / symbol", "Intent, requested aspects, token budget"] },
+          { id: "mcp", x: 550, y: 215, w: 360, h: 95, title: "Local MCP adapter", lines: ["C# / .NET + official MCP SDK", "cache_lookup / cache_explain"] },
+          { id: "policy", x: 60, y: 215, w: 360, h: 110, kind: "boundary", title: "Access and source boundary", lines: ["Configured repository and allowed roots", "Principal partition, exclusions, no secrets", "Applied to acquisition and every lookup"] },
+          { id: "scope", x: 550, y: 375, w: 360, h: 95, title: "Request + scope resolver", lines: ["Repository, checkout, ref, target, project", "Normalize intent and required coverage"] },
+          { id: "source", x: 60, y: 535, w: 360, h: 110, title: "Repository + build context", lines: ["Saved source, staged / dirty / new files", "Project inputs, references, configuration"] },
+          { id: "lookup", x: 550, y: 535, w: 360, h: 110, title: "Scoped candidate retrieval", lines: ["Exact keys -> FTS5 lexical retrieval", "Optional embeddings + sqlite-vec"] },
+          { id: "store", x: 1050, y: 535, w: 380, h: 110, kind: "store", title: "L1: local evidence + indexes", lines: ["SQLite: artifacts, cards, dependency links", "Source anchors, versions, validation records"] },
+          { id: "snapshot", x: 60, y: 750, w: 360, h: 115, title: "Git / workspace snapshot", lines: ["Actual bytes and content fingerprints", "Project + reference dependency manifests", "Watchers accelerate; hashes decide"] },
+          { id: "gate", x: 550, y: 750, w: 360, h: 115, kind: "gate", title: "Freshness + coverage gate", lines: ["Check source / dependency fingerprints", "Separate freshness from evidence support", "HIT / PARTIAL / MISS + explicit reasons"] },
+          { id: "compile", x: 1050, y: 750, w: 380, h: 115, kind: "fresh", title: "Context compiler", lines: ["Rank, deduplicate, preserve source excerpts", "Citations + observed snapshot + missing aspects", "Fit the serialized evidence budget"] },
+          { id: "acquire", x: 60, y: 1010, w: 360, h: 125, kind: "refresh", title: "Acquire only missing evidence", lines: ["code_read_cached / code_search_cached", "Roslyn syntax + semantic analysis", "Record exact source/tool artifacts", "Normal exploration on explicit failure"] },
+          { id: "admit", x: 550, y: 1010, w: 360, h: 125, kind: "refresh", title: "Evidence admission", lines: ["Source excerpts + deterministic facts", "Derived summaries stay labeled", "Recheck snapshot; publish transactionally", "cache_record does not self-certify truth"] },
+          { id: "answer", x: 1050, y: 1010, w: 380, h: 125, kind: "fresh", title: "Fresh user-facing answer", lines: ["MCP returns context to the coding agent", "Existing answering LLM generates the response", "Original question + compact cited evidence", "No automatic patch or trajectory replay"] },
+          { id: "metrics", x: 550, y: 1210, w: 880, h: 90, kind: "boundary", title: "Cross-cutting metrics, diagnostics, and audit", lines: ["Hit/miss reasons, capture coverage, tokens, tool calls, lookup/refresh/embedding cost, cache_explain lineage"] }
+        ],
+        edges: [
+          { from: "agent", to: "mcp", label: "1. Explicit MCP tool call" },
+          { from: "mcp", to: "scope", label: "2. Resolve request" },
+          { from: "scope", to: "lookup", label: "3. Retrieve candidates" },
+          { from: "store", to: "lookup", fromPort: "left", toPort: "right", label: "Candidate IDs", lx: 980, ly: 570 },
+          { from: "source", to: "snapshot", label: "Observe saved workspace" },
+          { from: "snapshot", to: "gate", fromPort: "right", toPort: "left", label: "Manifests", lx: 485, ly: 795 },
+          { from: "lookup", to: "gate", label: "4. Candidate cards" },
+          { from: "gate", to: "compile", fromPort: "right", toPort: "left", kind: "fresh", label: "HIT / valid subset", lx: 980, ly: 790 },
+          { from: "gate", to: "acquire", kind: "refresh", points: [[730, 925], [240, 925]], label: "MISS / missing PARTIAL aspects", lx: 480, ly: 912 },
+          { from: "acquire", to: "admit", fromPort: "right", toPort: "left", kind: "refresh", label: "New cards", lx: 485, ly: 1055 },
+          { from: "admit", to: "gate", fromPort: "right", toPort: "top", kind: "refresh", points: [[965, 1072.5], [965, 705], [730, 705]], label: "Re-enter gate", lx: 970, ly: 960 },
+          { from: "admit", to: "store", fromPort: "right", toPort: "bottom", kind: "refresh", points: [[1015, 1072.5], [1015, 685], [1240, 685]], label: "Persist", lx: 1125, ly: 676 },
+          { from: "compile", to: "answer", kind: "fresh", label: "5. Return context through the host" },
+          { from: "acquire", to: "source", fromPort: "left", toPort: "left", kind: "refresh", points: [[28, 1072.5], [28, 590]], label: "Read", lx: 28, ly: 960 },
+          { from: "scope", to: "policy", fromPort: "left", toPort: "right", points: [[470, 422.5], [470, 270]], label: "Scope policy", lx: 470, ly: 355 }
+        ],
+        notes: [
+          ["Warm path", "A fresh, adequately supported hit skips redundant exploration. A partial hit retains valid cards and refreshes only missing coverage."],
+          ["Cold path", "Acquire source through the supported tools, extract Roslyn evidence, attach dependency manifests, and return new cards through the same freshness gate."],
+          ["Important boundary", "An MCP server cannot intercept unrelated tools or infer unsaved IDE buffers. Capture coverage and saved-file scope must remain explicit."]
+        ]
+      },
+      state: {
+        title: "02 / Source, evidence, indexes, and invalidation",
+        caption: "Artifacts are immutable. Freshness belongs to an evidence-to-snapshot association, not to one global flag on a cached fact.",
+        width: 1530, height: 1240,
+        groups: [
+          { x: 30, y: 490, w: 1440, h: 230, title: "AUTHORITATIVE LOCAL SQLITE / one coherent publication boundary" },
+          { x: 30, y: 785, w: 1440, h: 195, title: "REBUILDABLE RETRIEVAL INDEXES / not the source of truth" }
+        ],
+        nodes: [
+          { id: "repo", x: 60, y: 65, w: 350, h: 115, title: "Repository / working tree", lines: ["Source bytes, relevant new / dirty files", "Project and reference source closure", "Configuration and generated inputs"] },
+          { id: "snapshot", x: 575, y: 65, w: 350, h: 115, title: "Snapshot + manifest provider", lines: ["Git state + actual consumed hashes", "Ref, checkout, project context", "Snapshot ID and source anchors"] },
+          { id: "invalidate", x: 1090, y: 65, w: 350, h: 115, kind: "change", title: "Selective invalidation", lines: ["Changed source / scope / configuration", "Follow dependencies and derived records", "Unknown closure -> conservative refresh"] },
+          { id: "tools", x: 60, y: 300, w: 350, h: 115, title: "Cached acquisition tools", lines: ["code_read_cached / code_search_cached", "Canonical arguments and tool versions", "Search completeness + negative results"] },
+          { id: "roslyn", x: 575, y: 300, w: 350, h: 115, title: "Roslyn analyzer", lines: ["Syntax / AST + symbol binding", "References, snippets, deterministic facts", "Surface unresolved compilation context"] },
+          { id: "admit", x: 1090, y: 300, w: 350, h: 115, kind: "gate", title: "Support + snapshot admission", lines: ["Source support, evidence strength", "Derivation versions, dependency coverage", "No model-supplied 'fresh' flag"] },
+          { id: "artifacts", x: 60, y: 550, w: 350, h: 130, kind: "store", title: "Immutable artifacts / exact cache", lines: ["Source bytes + hashes + spans", "Structured tool results and parser outputs", "Tool keys + searched-corpus fingerprints", "Historical snapshots retained"] },
+          { id: "evidence", x: 575, y: 550, w: 350, h: 130, kind: "store", title: "Evidence + dependencies", lines: ["Cards, target, aspects, source IDs", "File / project / search-scope dependencies", "Extractor, prompt, model versions", "Derived claims retain support links"] },
+          { id: "validations", x: 1090, y: 550, w: 350, h: 130, kind: "store", title: "Snapshot associations", lines: ["Fresh / historical / suspect / stale", "Tombstones, revocations, reason codes", "Validation times + coverage", "Status is per requested snapshot"] },
+          { id: "exact", x: 60, y: 835, w: 350, h: 105, title: "Exact identifier / path index", lines: ["Case-preserving identity where applicable", "Scope + intent + target + aspects"] },
+          { id: "fts", x: 575, y: 835, w: 350, h: 105, title: "SQLite FTS5", lines: ["Lexical retrieval and ranking", "Application-maintained index consistency"] },
+          { id: "vector", x: 1090, y: 835, w: 350, h: 120, kind: "optional", title: "Embedding provider + sqlite-vec", lines: ["Optional semantic candidate recall", "Approved local model / endpoint", "Model, preprocessing, dimensions versioned"] },
+          { id: "metrics", x: 60, y: 1090, w: 350, h: 115, kind: "boundary", title: "Usage + audit + retention", lines: ["Every stage emits structured metrics", "Diagnostics, lineage, cache_explain", "Size limits, deletion, bounded writes"] },
+          { id: "retrieve", x: 575, y: 1090, w: 350, h: 115, title: "Scoped retriever", lines: ["Hard repository / principal constraints", "Exact -> lexical -> optional semantic", "Candidate IDs, not presumed truth"] },
+          { id: "compile", x: 1090, y: 1090, w: 350, h: 115, kind: "fresh", title: "Freshness gate + compiler", lines: ["Resolve authoritative evidence", "Validate manifests and requested coverage", "Emit bounded, cited context"] }
+        ],
+        edges: [
+          { from: "repo", to: "snapshot", fromPort: "right", toPort: "left", label: "Observed inputs" },
+          { from: "snapshot", to: "invalidate", fromPort: "right", toPort: "left", kind: "change", label: "Compare manifests" },
+          { from: "repo", to: "tools", label: "Exact source bytes" },
+          { from: "snapshot", to: "roslyn", label: "Compilation context" },
+          { from: "tools", to: "roslyn", fromPort: "right", toPort: "left", label: "Source artifacts" },
+          { from: "roslyn", to: "admit", fromPort: "right", toPort: "left", label: "Candidate evidence" },
+          { from: "tools", to: "artifacts", label: "Persist acquired results" },
+          { from: "admit", to: "evidence", points: [[1265, 460], [750, 460]], label: "Admit supported cards", lx: 1005, ly: 449 },
+          { from: "artifacts", to: "evidence", fromPort: "right", toPort: "left", label: "Source IDs" },
+          { from: "evidence", to: "validations", fromPort: "right", toPort: "left", label: "Snapshot status" },
+          { from: "invalidate", to: "validations", fromPort: "right", toPort: "right", kind: "change", points: [[1490, 122.5], [1490, 615]], label: "Mark affected", lx: 1470, ly: 235 },
+          { from: "artifacts", to: "exact", label: "Index keys" },
+          { from: "evidence", to: "fts", label: "Index card text" },
+          { from: "evidence", to: "vector", kind: "optional", points: [[750, 750], [1265, 750]], label: "Embed once per version", lx: 1050, ly: 738 },
+          { from: "exact", to: "retrieve", points: [[235, 1025], [750, 1025]], label: "Exact", lx: 440, ly: 1013 },
+          { from: "fts", to: "retrieve", label: "Lexical", lx: 750, ly: 995 },
+          { from: "vector", to: "retrieve", kind: "optional", points: [[1265, 1048], [750, 1048]], label: "Semantic", lx: 1050, ly: 1035 },
+          { from: "retrieve", to: "compile", fromPort: "right", toPort: "left", kind: "fresh", label: "Candidate IDs" }
+        ],
+        notes: [
+          ["Source change is not a cache flush", "Invalidate affected snapshot associations and derived evidence. Keep immutable history and unrelated file-local cards."],
+          ["Conservative before clever", "A new overload or partial declaration can change binding. Use project/reference closure fingerprints before claiming precise semantic invalidation."],
+          ["Local disk only", "Store runtime data outside OneDrive, for example under %LOCALAPPDATA%\\AgentCacheX. SQLite WAL is same-host with one writer at a time."]
+        ]
+      },
+      team: {
+        title: "03 / Optional team sharing and scale-out",
+        caption: "Share supported evidence for clean snapshots, not chat sessions or a live SQLite file. The receiving checkout makes the final freshness decision.",
+        width: 1500, height: 1170,
+        nodes: [
+          { id: "agentA", x: 60, y: 65, w: 350, h: 100, title: "Developer A + coding agent", lines: ["Own session, checkout, and credentials", "Uses the local MCP adapter"] },
+          { id: "canonical", x: 575, y: 65, w: 350, h: 100, title: "Trusted repository source", lines: ["Canonical clean, immutable snapshots", "Source and dependency verification"] },
+          { id: "agentB", x: 1090, y: 65, w: 350, h: 100, title: "Developer B + coding agent", lines: ["Independent session and checkout", "Same authorized repository scope"] },
+          { id: "localA", x: 60, y: 305, w: 350, h: 120, title: "A: local MCP adapter", lines: ["Lookup / acquisition / context compilation", "Publish only eligible clean-snapshot evidence", "Dirty worktree evidence stays local"] },
+          { id: "hub", x: 575, y: 305, w: 350, h: 120, kind: "optional", title: "Authenticated team cache hub", lines: ["Protected API + repository authorization", "Source-support admission and revocation", "Client summaries are not self-certified"] },
+          { id: "localB", x: 1090, y: 305, w: 350, h: 120, title: "B: local MCP adapter", lines: ["Local lookup first; team query when useful", "Treat shared cards as candidates", "Observe B's own saved-workspace manifest"] },
+          { id: "l1A", x: 60, y: 555, w: 350, h: 120, kind: "store", title: "A: private L1 SQLite", lines: ["Principal / checkout partition", "Local artifacts, evidence, indexes", "Uncommitted edits are not uploaded"] },
+          { id: "l2", x: 575, y: 555, w: 350, h: 120, kind: "optional", title: "L2: shared clean-snapshot cache", lines: ["Single-host, server-local SQLite for demo", "Canonical artifacts + evidence + manifests", "Clients access the service, never this file"] },
+          { id: "l1B", x: 1090, y: 555, w: 350, h: 120, kind: "store", title: "B: private L1 SQLite", lines: ["Local snapshot associations and overlays", "Shared evidence still needs local freshness", "Supported results can populate local cache"] },
+          { id: "policy", x: 60, y: 805, w: 350, h: 120, kind: "boundary", title: "Cross-cutting team controls", lines: ["Authentication, repository access, transport", "No secrets or excluded source capture", "Audit, retention, rate and request limits"] },
+          { id: "refresh", x: 575, y: 805, w: 350, h: 120, kind: "refresh", title: "Local miss / partial refresh", lines: ["Acquire only missing or changed evidence", "Use B's repository, not A's dirty state", "Re-enter the local request flow"] },
+          { id: "gateB", x: 1090, y: 805, w: 350, h: 120, kind: "gate", title: "B: freshness + coverage gate", lines: ["Compare shared dependencies to B's source", "Reject stale / suspect candidates", "Keep only supported current cards"] },
+          { id: "scale", x: 575, y: 1030, w: 350, h: 115, kind: "optional", title: "Later: PostgreSQL + Qdrant", lines: ["PostgreSQL: authoritative shared records", "Qdrant: optional rebuildable retrieval index", "Versioned outbox / publication boundary"] },
+          { id: "answerB", x: 1090, y: 1030, w: 350, h: 115, kind: "fresh", title: "B: compiler -> agent -> LLM", lines: ["Compact cited context from current evidence", "New answer to B's original question", "Cross-developer reuse without shared state"] }
+        ],
+        edges: [
+          { from: "agentA", to: "localA", label: "Local stdio MCP" },
+          { from: "agentB", to: "localB", label: "Local stdio MCP" },
+          { from: "canonical", to: "hub", label: "Canonical source admission" },
+          { from: "localA", to: "hub", fromPort: "right", toPort: "left", kind: "optional", label: "Clean evidence", lx: 492, ly: 350 },
+          { from: "hub", to: "localB", fromPort: "right", toPort: "left", kind: "optional", label: "Shared candidates", lx: 1007, ly: 350 },
+          { from: "localA", to: "l1A", label: "Private artifacts" },
+          { from: "hub", to: "l2", kind: "optional", label: "Serve / persist" },
+          { from: "localB", to: "l1B", label: "Local candidates / cache" },
+          { from: "l1B", to: "gateB", label: "Revalidate for B" },
+          { from: "gateB", to: "refresh", fromPort: "left", toPort: "right", kind: "refresh", label: "Mismatch / missing", lx: 1007, ly: 850 },
+          { from: "gateB", to: "answerB", kind: "fresh", label: "Fresh / covered evidence" },
+          { from: "l2", to: "scale", fromPort: "left", toPort: "left", kind: "optional", points: [[490, 615], [490, 1087.5]], label: "Only if scale requires", lx: 490, ly: 965 }
+        ],
+        notes: [
+          ["Not session co-editing", "Each developer keeps an independent coding-agent session. Shared evidence is a service capability, not shared chat or filesystem state."],
+          ["Local is not team-wide", "A local-only demo shows same-machine reuse. Cross-developer savings require the authenticated L2 path shown here."],
+          ["Optional infrastructure", "A single service with server-local SQLite is enough for the team demo. Add PostgreSQL/Qdrant only when measured scale warrants it."]
+        ]
+      }
+    };
+
+    const colors = {
+      normal: { fill: "#152640", stroke: "#739de5" },
+      fresh: { fill: "#103930", stroke: "#53e0b6" },
+      refresh: { fill: "#392e21", stroke: "#ffca78" },
+      gate: { fill: "#243651", stroke: "#d6e5ff" },
+      store: { fill: "#192b45", stroke: "#79b8ed" },
+      optional: { fill: "#29213f", stroke: "#bfacff" },
+      change: { fill: "#392333", stroke: "#ff96a8" },
+      boundary: { fill: "#121f34", stroke: "#61738f" }
+    };
+    const canvas = document.getElementById("diagram");
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("A browser with Canvas 2D support is required.");
+    let current = "request";
+    let scale = 1;
+    let fitMode = true;
+    const port = (node, name) => ({
+      top: [node.x + node.w / 2, node.y],
+      bottom: [node.x + node.w / 2, node.y + node.h],
+      left: [node.x, node.y + node.h / 2],
+      right: [node.x + node.w, node.y + node.h / 2]
+    }[name]);
+    function pathFor(graph, edge) {
+      const from = graph.nodes.find(n => n.id === edge.from);
+      const to = graph.nodes.find(n => n.id === edge.to);
+      const a = port(from, edge.fromPort || "bottom");
+      const b = port(to, edge.toPort || "top");
+      if (!a || !b) throw new Error("Unknown connector port.");
+      return [a, ...(edge.points || []), b];
+    }
+    function rounded(x, y, w, h, radius) {
+      ctx.beginPath();
+      ctx.moveTo(x + radius, y);
+      ctx.arcTo(x + w, y, x + w, y + h, radius);
+      ctx.arcTo(x + w, y + h, x, y + h, radius);
+      ctx.arcTo(x, y + h, x, y, radius);
+      ctx.arcTo(x, y, x + w, y, radius);
+      ctx.closePath();
+    }
+    function wrapped(text, width, font) {
+      ctx.font = font;
+      const lines = [];
+      let line = "";
+      for (const word of text.split(" ")) {
+        if (ctx.measureText(word).width > width) throw new Error("Unbreakable diagram label: " + word);
+        const next = line ? line + " " + word : word;
+        if (ctx.measureText(next).width > width && line) {
+          lines.push(line);
+          line = word;
+        } else line = next;
+      }
+      if (line) lines.push(line);
+      return lines;
+    }
+    function nodeText(node) {
+      const title = wrapped(node.title, node.w - 36, 'bold 16px "Segoe UI", Arial, sans-serif');
+      const body = node.lines.flatMap(line => wrapped(line, node.w - 36, '13px "Segoe UI", Arial, sans-serif'));
+      if (17 + title.length * 21 + 8 + body.length * 18 + 6 > node.h) {
+        throw new Error("Text overflows diagram node: " + node.id);
+      }
+      return { title, body };
+    }
+    function drawNode(node) {
+      const palette = colors[node.kind || "normal"];
+      const text = nodeText(node);
+      ctx.save();
+      ctx.setLineDash(["optional", "boundary"].includes(node.kind) ? [7, 5] : []);
+      rounded(node.x, node.y, node.w, node.h, 12);
+      ctx.fillStyle = palette.fill;
+      ctx.fill();
+      ctx.strokeStyle = palette.stroke;
+      ctx.lineWidth = 1.8;
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = palette.stroke;
+      ctx.fillRect(node.x + 1, node.y + 18, 4, node.h - 36);
+      ctx.textBaseline = "top";
+      ctx.textAlign = "left";
+      let y = node.y + 17;
+      ctx.fillStyle = "#f0f5ff";
+      ctx.font = 'bold 16px "Segoe UI", Arial, sans-serif';
+      for (const line of text.title) { ctx.fillText(line, node.x + 18, y); y += 21; }
+      y += 8;
+      ctx.fillStyle = "#b9cbe3";
+      ctx.font = '13px "Segoe UI", Arial, sans-serif';
+      for (const line of text.body) { ctx.fillText(line, node.x + 18, y); y += 18; }
+      ctx.restore();
+    }
+    function drawEdge(graph, edge) {
+      const points = pathFor(graph, edge);
+      const color = colors[edge.kind || "normal"].stroke;
+      ctx.save();
+      ctx.strokeStyle = color;
+      ctx.lineWidth = edge.kind === "fresh" ? 2.8 : 1.9;
+      ctx.lineJoin = "round";
+      ctx.setLineDash(["optional", "change"].includes(edge.kind) ? [8, 5] : []);
+      ctx.beginPath();
+      points.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y));
+      ctx.stroke();
+      ctx.setLineDash([]);
+      const end = points.at(-1);
+      const prev = points.at(-2);
+      const angle = Math.atan2(end[1] - prev[1], end[0] - prev[0]);
+      ctx.beginPath();
+      ctx.moveTo(...end);
+      ctx.lineTo(end[0] - 10 * Math.cos(angle - .45), end[1] - 10 * Math.sin(angle - .45));
+      ctx.lineTo(end[0] - 10 * Math.cos(angle + .45), end[1] - 10 * Math.sin(angle + .45));
+      ctx.closePath();
+      ctx.fillStyle = color;
+      ctx.fill();
+      ctx.restore();
+    }
+    function drawEdgeLabel(graph, edge) {
+      if (!edge.label) return;
+      const points = pathFor(graph, edge);
+      const a = points[0], b = points.at(-1);
+      const x = edge.lx ?? (a[0] + b[0]) / 2;
+      const y = edge.ly ?? (a[1] + b[1]) / 2 - 12;
+      ctx.save();
+      ctx.font = '12px "Segoe UI", Arial, sans-serif';
+      const width = ctx.measureText(edge.label).width + 14;
+      const safeX = Math.max(width / 2 + 3, Math.min(graph.width - width / 2 - 3, x));
+      rounded(safeX - width / 2, y - 8, width, 23, 5);
+      ctx.fillStyle = "#0c1527";
+      ctx.fill();
+      ctx.fillStyle = colors[edge.kind || "normal"].stroke;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(edge.label, safeX, y + 3);
+      ctx.restore();
+    }
+    function validateGraph(graph) {
+      const ids = new Set();
+      for (const node of graph.nodes) {
+        if (ids.has(node.id)) throw new Error("Duplicate node: " + node.id);
+        ids.add(node.id);
+        if (node.x < 0 || node.y < 0 || node.x + node.w > graph.width || node.y + node.h > graph.height) {
+          throw new Error("Out-of-bounds node: " + node.id);
+        }
+        nodeText(node);
+      }
+      for (let i = 0; i < graph.nodes.length; i++) {
+        for (const other of graph.nodes.slice(i + 1)) {
+          const n = graph.nodes[i];
+          if (n.x < other.x + other.w && n.x + n.w > other.x && n.y < other.y + other.h && n.y + n.h > other.y) {
+            throw new Error("Overlapping nodes: " + n.id + " / " + other.id);
+          }
+        }
+      }
+      for (const edge of graph.edges) {
+        if (!ids.has(edge.from) || !ids.has(edge.to)) throw new Error("Missing edge endpoint.");
+        for (const point of pathFor(graph, edge)) {
+          if (point[0] < 0 || point[1] < 0 || point[0] > graph.width || point[1] > graph.height) {
+            throw new Error("Out-of-bounds connector.");
+          }
+        }
+      }
+      return { nodes: graph.nodes.length, edges: graph.edges.length };
+    }
+    function render() {
+      const graph = graphs[current];
+      const available = document.getElementById("viewport").clientWidth - 34;
+      if (fitMode) scale = Math.max(.2, Math.min(1, available / graph.width));
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      canvas.width = Math.round(graph.width * scale * dpr);
+      canvas.height = Math.round(graph.height * scale * dpr);
+      canvas.style.width = graph.width * scale + "px";
+      canvas.style.height = graph.height * scale + "px";
+      ctx.setTransform(scale * dpr, 0, 0, scale * dpr, 0, 0);
+      ctx.fillStyle = "#0c1527";
+      ctx.fillRect(0, 0, graph.width, graph.height);
+      for (const group of graph.groups || []) {
+        rounded(group.x, group.y, group.w, group.h, 14);
+        ctx.fillStyle = "#101d33";
+        ctx.fill();
+        ctx.strokeStyle = "#30425f";
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        ctx.fillStyle = "#99afce";
+        ctx.font = 'bold 12px "Segoe UI", Arial, sans-serif';
+        ctx.textBaseline = "top";
+        ctx.fillText(group.title, group.x + 18, group.y + 16);
+      }
+      graph.edges.forEach(edge => drawEdge(graph, edge));
+      graph.nodes.forEach(drawNode);
+      graph.edges.forEach(edge => drawEdgeLabel(graph, edge));
+      canvas.setAttribute("aria-label", graph.title + ". " + graph.caption);
+      document.getElementById("view-title").textContent = graph.title;
+      document.getElementById("view-caption").textContent = graph.caption;
+      document.getElementById("zoom").textContent = Math.round(scale * 100) + "%";
+    }
+    function showView(id) {
+      if (!Object.hasOwn(graphs, id)) throw new Error("Unknown architecture view: " + id);
+      current = id;
+      const graph = graphs[id];
+      document.querySelectorAll("[data-view]").forEach(button => button.setAttribute("aria-pressed", String(button.dataset.view === id)));
+      const notes = document.getElementById("notes");
+      notes.replaceChildren();
+      for (const [title, text] of graph.notes) {
+        const card = document.createElement("section");
+        card.className = "note";
+        const heading = document.createElement("h3");
+        heading.textContent = title;
+        const body = document.createElement("p");
+        body.textContent = text;
+        card.append(heading, body);
+        notes.append(card);
+      }
+      const list = document.getElementById("text-flow");
+      list.replaceChildren();
+      for (const node of graph.nodes) {
+        const p = document.createElement("p");
+        const strong = document.createElement("strong");
+        strong.textContent = node.title + ": ";
+        p.append(strong, node.lines.join(". "));
+        list.append(p);
+      }
+      for (const edge of graph.edges) {
+        const p = document.createElement("p");
+        const from = graph.nodes.find(n => n.id === edge.from).title;
+        const to = graph.nodes.find(n => n.id === edge.to).title;
+        p.textContent = from + " -> " + to + " (" + edge.label + ")";
+        list.append(p);
+      }
+      render();
+    }
+    function mermaid(id) {
+      const graph = graphs[id];
+      const clean = text => text.replaceAll("&", "&amp;").replaceAll('"', "&quot;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+      const lines = ["%% AgentCacheX: " + graph.title, "%% Proposed architecture; optional/later components are dashed.", "flowchart TB"];
+      for (const node of graph.nodes) {
+        lines.push('  ' + node.id + '["' + [node.title, ...node.lines].map(clean).join("<br/>") + '"]');
+      }
+      for (const edge of graph.edges) {
+        const arrow = ["optional", "change"].includes(edge.kind) ? "-.->" : "-->";
+        lines.push('  ' + edge.from + ' ' + arrow + ' |"' + clean(edge.label || "") + '"| ' + edge.to);
+      }
+      for (const [kind, palette] of Object.entries(colors)) {
+        const dashed = ["optional", "boundary"].includes(kind) ? ",stroke-dasharray: 5 5" : "";
+        lines.push("  classDef " + kind + " fill:" + palette.fill + ",stroke:" + palette.stroke + ",color:#edf3ff" + dashed + ";");
+        const ids = graph.nodes.filter(node => (node.kind || "normal") === kind).map(node => node.id);
+        if (ids.length) lines.push("  class " + ids.join(",") + " " + kind + ";");
+      }
+      return lines.join("\n") + "\n";
+    }
+    document.querySelectorAll("[data-view]").forEach(button => button.addEventListener("click", () => showView(button.dataset.view)));
+    document.getElementById("fit").addEventListener("click", () => { fitMode = true; render(); });
+    document.getElementById("in").addEventListener("click", () => { fitMode = false; scale = Math.min(2, scale + .15); render(); });
+    document.getElementById("out").addEventListener("click", () => { fitMode = false; scale = Math.max(.2, scale - .15); render(); });
+    document.getElementById("print").addEventListener("click", () => window.print());
+    document.getElementById("export").addEventListener("click", () => {
+      const url = URL.createObjectURL(new Blob([mermaid(current)], { type: "text/plain;charset=utf-8" }));
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "AgentCacheX-" + current + ".mmd";
+      document.body.append(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    });
+    window.addEventListener("resize", () => { if (fitMode) render(); });
+    window.addEventListener("error", event => {
+      const error = document.getElementById("error");
+      error.hidden = false;
+      error.textContent = "Diagram error: " + event.message;
+      document.documentElement.dataset.diagramStatus = "error";
+    });
+    const results = Object.fromEntries(Object.entries(graphs).map(([id, graph]) => [id, validateGraph(graph)]));
+    // Exercise every view before displaying the initial one.
+    for (const id of Object.keys(graphs)) showView(id);
+    showView("request");
+    document.getElementById("diagram-check").textContent = JSON.stringify(results);
+    document.documentElement.dataset.diagramStatus = "ready";
+    window.AgentCacheXDiagram = { graphs, showView, mermaid, validateGraph };
+  </script>
+</body>
+</html>
