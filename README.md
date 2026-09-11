@@ -108,7 +108,7 @@ Use separate clones/checkouts, branches, and agent sessions. Read `PROJECT-CONTE
 
 Suggested workstreams are storage/retrieval, source/freshness, MCP/context compilation, and evaluation/demo. Integrate through pull requests rather than concurrently editing a shared OneDrive working directory.
 
-This repository is private. Repository owners must explicitly grant team members access; creating it does not automatically invite collaborators.
+This repository is public: anyone can view, clone, and fork it at [github.com/Avish34/AgentCacheX](https://github.com/Avish34/AgentCacheX). Contributors can propose changes through forks and pull requests. Public visibility does not grant direct write access; the owner must still invite collaborators for that.
 
 ## Evidence and performance
 

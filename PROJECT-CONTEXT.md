@@ -21,6 +21,7 @@ The initial materials combined broad commercial brainstorming with a narrower, s
 6. `AgentCacheX-Architecture.html` added three offline diagram views, including Mermaid export and print/PDF.
 7. The project owner requested a private GitHub repository containing all materials, context, presentations, and responses.
 8. The owner clarified that the repository should belong to `Avish34`. The intended project repository is [Avish34/AgentCacheX](https://github.com/Avish34/AgentCacheX); the earlier repository under the initially active account was left untouched.
+9. The owner subsequently requested public visibility so the repository could be shared by link. Anyone can view, clone, or fork the repository; direct write access still requires a collaborator invitation.
 
 The initial request excluded reading SVG/PNG files. Slide text was extracted without opening embedded images. The Keynote-Style deck was locked during that review; its original file is retained without claiming its content was reviewed.
 

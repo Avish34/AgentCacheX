@@ -177,3 +177,21 @@ The original presentation and response files remain separate from the later rese
 ### Repository ownership
 
 The intended private project repository is [Avish34/AgentCacheX](https://github.com/Avish34/AgentCacheX). The repository under the initially active `avishporwal_microsoft` account is not deleted or transferred. Existing commit history is preserved; the README clone URL and local remote are updated for `Avish34`.
+
+## 7. Public sharing
+
+### User
+
+> Can you create a link so that people can join the repo?
+
+### Clarification
+
+Private personal repositories require invitations to specific GitHub accounts; there is no unrestricted join-by-link option that grants collaborator access.
+
+### User decision
+
+> let's make it public
+
+### Repository visibility
+
+[Avish34/AgentCacheX](https://github.com/Avish34/AgentCacheX) is now public. Anyone can view, clone, or fork the project and propose changes through pull requests. Direct write access still requires a collaborator invitation. The earlier repository under the initially active account remains untouched.
