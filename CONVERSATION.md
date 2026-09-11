@@ -167,3 +167,13 @@ Works offline with **zoom, Print/PDF, and editable Mermaid export**. Also linked
 The README indexes the original inputs, design, diagram, research reports, and this conversation. `PROJECT-CONTEXT.md` provides the current implementation status, decisions, assumptions, open questions, and proposed team workstreams.
 
 The original presentation and response files remain separate from the later research so that brainstorming, source-backed findings, proposed architecture, and eventual measured results are not conflated.
+
+## 6. GitHub account correction
+
+### User
+
+> I want Avish34 github account to create the repo
+
+### Repository ownership
+
+The intended private project repository is [Avish34/AgentCacheX](https://github.com/Avish34/AgentCacheX). The repository under the initially active `avishporwal_microsoft` account is not deleted or transferred. Existing commit history is preserved; the README clone URL and local remote are updated for `Avish34`.

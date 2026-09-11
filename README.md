@@ -60,7 +60,7 @@ The September 11 design and source-pinned research refine the earlier brainstorm
 GitHub renders the Mermaid overview in this README. To use the interactive diagram, clone or download this repository and open `AgentCacheX-Architecture.html` locally. GitHub's source-file view does not execute the HTML.
 
 ```powershell
-git clone https://github.com/avishporwal_microsoft/AgentCacheX.git
+git clone https://github.com/Avish34/AgentCacheX.git
 Set-Location .\AgentCacheX
 Start-Process .\AgentCacheX-Architecture.html
 ```
