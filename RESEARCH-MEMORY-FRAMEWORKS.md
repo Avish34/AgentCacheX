@@ -6,7 +6,11 @@
 
 Inspected snapshots: Graphiti `c64e45c`, Mem0 `c7ee362`, and LlamaIndex `5fb3f39`. These identify reviewed source, not installed package releases.
 
-## Conclusion
+> **Historical research - not the current implementation plan (2026-09-13).** The focused MVP is a language-agnostic shared tool-result cache plus token-efficient progressive disclosure. Graphiti, Mem0, LlamaIndex, generated evidence cards, and owned Roslyn/LSP adapters are not required. See the [current HLD](AgentCacheX-High-Level-Design.md).
+
+This report researched an earlier C# evidence-cache pilot. Roslyn is C#-specific; the current product reuses existing providers instead of building language analyzers. The following conclusions are retained as dated research, not current MVP recommendations or language restrictions.
+
+## Historical conclusion
 
 **Reuse selected components; do not replace the evidence-cache design with an entire memory framework.**
 

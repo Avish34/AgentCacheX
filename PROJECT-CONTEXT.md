@@ -1,150 +1,141 @@
 # AgentCacheX: Project Context and Team Handoff
 
-**Captured:** 2026-09-11  
-**Purpose:** Let another teammate or coding-agent session understand the project without needing the original chat.
+**Updated:** 2026-09-13 - focused shared-cache MVP  
+**Purpose:** Give a teammate or separate agent session the current decisions without requiring the chat.
 
-## What we are building
+## The agreed problem
 
-AgentCacheX is a hackathon project for repository-aware reuse of coding-agent discoveries. Different questions about unchanged code should not require repeating all file reads, searches, dependency exploration, and context construction.
+Multiple developers working on the same repository repeat the same read-only code lookups and send oversized, repetitive results to their agents. AgentCacheX shares version-scoped tool results and returns only the details each agent needs.
 
-The proposed cache supplies source-backed evidence to the existing agent. It does not replace the agent runtime and does not blindly replay generated answers, patches, or shell commands.
+**Build a shared, programming-language-agnostic tool-result cache plus a deterministic token optimizer.** Reuse existing providers. Do not build a semantic-analysis or agent-memory platform.
 
-The initial materials combined broad commercial brainstorming with a narrower, source-provenance-first memory design. The current recommendation follows the narrower design.
+The two benefits are independent: shared results reduce repeated backend work; compact previews and selected details reduce unnecessary tool payload on misses as well as hits. The existing agent still produces a fresh answer.
 
-## Source material and chronology
+## Current status
 
-1. The original folder contained three PowerPoint decks, `GeminiResponse.txt`, and the August 31 SharedRP memory-layer research.
-2. The initial review identified a single-repository C# MVP, evidence cards, MCP integration, AST/Git signals, selective invalidation, and modeled token/latency savings.
-3. Team collaboration was discussed. The recommended workflow is separate sessions and branches, with repository documentation as shared context.
-4. Public-source research compared six architectures and concrete storage/memory components. The detailed findings are preserved in `RESEARCH-STORAGE.md` and `RESEARCH-MEMORY-FRAMEWORKS.md`.
-5. `AgentCacheX-High-Level-Design.md` captured the recommended architecture, contracts, correctness boundaries, deployment, and evaluation.
-6. `AgentCacheX-Architecture.html` added three offline diagram views, including Mermaid export and print/PDF.
-7. The project owner requested a private GitHub repository containing all materials, context, presentations, and responses.
-8. The owner clarified that the repository should belong to `Avish34`. The intended project repository is [Avish34/AgentCacheX](https://github.com/Avish34/AgentCacheX); the earlier repository under the initially active account was left untouched.
-9. The owner subsequently requested public visibility so the repository could be shared by link. Anyone can view, clone, or fork the repository; direct write access still requires a collaborator invitation.
+The repository contains design documents, research history, an offline interactive architecture viewer, three updated PowerPoint decks, and a presentation-generation utility. **There is no cache backend, MCP implementation, Redis deployment, benchmark harness, or measured savings yet.**
 
-The initial request excluded reading SVG/PNG files. Slide text was extracted without opening embedded images. The Keynote-Style deck was locked during that review; its original file is retained without claiming its content was reviewed.
+The video, captions, player, and video-generation scripts were removed at the user's request. Do not treat historical mentions as an instruction to recreate them.
 
-## Current implementation status
+The current design is [AgentCacheX-High-Level-Design.md](AgentCacheX-High-Level-Design.md); [README.md](README.md) is the concise overview. Earlier research and conversation sections are historical, not competing implementation plans.
 
-This is a research/design repository. No backend cache service, package manifest, MCP server implementation, benchmark harness, or measured savings has been created yet.
+## Fixed MVP decisions
 
-The HTML architecture viewer is implemented documentation. It is not a cache-service UI.
-
-## Scope
-
-| In the first implementation | Outside the first implementation |
+| Decision | Meaning |
 |---|---|
-| One configured C# repository | General non-code or multi-repository memory |
-| File/symbol explanation and static dependency tracing | Runtime truth about unobserved databases/services/flags |
-| Saved working-tree files and explicit snapshots | Unsaved buffers without a host adapter |
-| Exact/lexical retrieval and source-qualified cards | Blind semantic answer/patch/trajectory replay |
-| Conservative dependency freshness and partial results | An assertion that AST similarity proves behavioral equivalence |
-| MCP tools and measured capture coverage | Transparent interception of every host tool |
-| Optional measured semantic recall | Mandatory vectors, graph database, or Redis cluster |
-| Optional authenticated clean-snapshot team cache | Sharing dirty edits or a live database through OneDrive |
+| Shared use is core | At least two developers, separate sessions, one repository, one authenticated service |
+| Token optimization is core | Keep complete captured results outside model context; return previews and batched selected details |
+| Language-agnostic boundary | Cache provider outputs and exact source ranges, not compiler-specific objects |
+| One existing provider first | Recommended baseline: `git grep` and source reads pinned to a verified commit in a trusted mirror |
+| Redis for shared results | One instance initially; no shared database file or required local L1 |
+| Proposed .NET/ASP.NET Core MCP host | Host language does not restrict repository languages |
+| Exact snapshot-qualified reuse | Match actual source/provider state and upstream arguments, not semantic question similarity |
+| Coarse revision invalidation | New source revision means a new key; no fine-grained dependency graph |
+| Deterministic output shaping | Preserve source text and citations; no LLM summaries or code minification |
+| Honest outcome measurement | Measure total task usage and quality against already-bounded native tools |
 
-The original decks include semantic matching in the MVP. The current recommendation sequences a correctness-first exact/lexical baseline before adding vectors. A paraphrase of the same structured intent/target can match without vector search; that must not be presented as proof of a semantic-vector feature.
+The Git pilot supports **text matches**, not proven symbol references or call relationships. A later capable provider can supply those operations; AgentCacheX need not implement them. Roslyn is only relevant to an upstream C# analyzer and is not an MVP dependency.
 
-## Architectural decisions
+## The complete request story
 
-| Decision | Reason |
+1. An agent explicitly invokes `search_compact` through the configured MCP wrapper.
+2. The service authenticates the caller, authorizes repository/content scope, and resolves the actual searchable snapshot.
+3. It checks the shared raw-result key. On a miss it runs the existing provider and stores the captured result.
+4. It returns compact source-anchored previews, stable item IDs, and explicit coverage/pagination metadata.
+5. The agent calls `fetch_details` for selected items in a batch, still bound to the same snapshot.
+6. Another authorized developer's equivalent query reuses that result, potentially with a different preview budget.
+
+If a detail expansion was not captured by the original search, perform and count a separate source read at the pinned revision. Do not assume a search artifact contains complete files.
+
+MCP registration does not intercept every other tool. The demo must show actual wrapper calls from separate agent sessions, not merely two invocations inside one session.
+
+## Contracts to freeze before coding
+
+| Contract | Required information |
 |---|---|
-| Reuse evidence, not final answers | Current answers should be grounded in the requested source state |
-| Keep immutable artifacts separate from evidence and compiled context | Acquisition identity, reusable meaning, and per-request output have different lifetimes |
-| C#/.NET plus official MCP SDK and Roslyn | Direct fit for the initial C# repository and semantic-analysis requirements |
-| SQLite authority, exact keys, FTS5 | Minimal operational footprint and coherent evidence/dependency transactions |
-| Optional sqlite-vec behind an interface | Semantic retrieval should demonstrate value; pre-v1 packaging needs care |
-| Freshness per evidence/snapshot association | A fact may be current in one checkout and historical or stale in another |
-| Fingerprint relevant compilation/source closure for semantic cards | New overloads, partial declarations, or configuration can change binding |
-| Prefer excerpts and deterministic facts | Unchanged hashes do not prove an LLM interpretation was correct |
-| Treat suspect/stale records as unusable for current claims | Validation failure is not permission to serve old information as current |
-| Separate local L1 and authenticated team L2 | Local dirty state and cross-user clean-snapshot reuse have different boundaries |
-| Defer PostgreSQL/Qdrant until justified | A single service with server-local SQLite can prove the team path |
-| Compare against incremental code RAG | Ship the simpler design if learned evidence adds no quality or cost benefit |
+| Snapshot | Repository immutable ID, actual source revision, applicable provider/index revision, and explicit verifiability |
+| Provider result | Provider/tool/version, canonical arguments, original payload, source locations, capabilities, and upstream completeness/continuation |
+| Access scope | Server-derived effective visibility/content-policy identity and policy version; not a model-supplied role |
+| Result set | Opaque ID, immutable items with stable IDs, snapshot, access binding, expiration, and full captured response |
+| Search response | Hit/miss/bypass status; previews or complete-result page; coverage, cursor, snapshot, expiry, and budget usage |
+| Detail response | Exact selected source ranges; fulfilled/pending selections; snapshot, cursor, expiry, and budget usage |
+| Response budget | Supported tokenizer and token limit, or byte bound with labeled token estimates |
 
-## Proposed shared contracts
+Proposed tools:
 
-Agree on these before dividing implementation work.
+```text
+search_compact(query, scope, response_budget, mode="preview", cursor=null)
+fetch_details(result_set_id, selections, response_budget, cursor=null)
+```
 
-**Snapshot:** repository ID, principal/scope, checkout/ref/commit, actual source manifest, project context fingerprint, and observation time.
+The raw cache key combines repository, actual snapshot, provider/tool version, canonical upstream arguments, effective access scope, and schema version. It does **not** automatically include developer username or presentation-only response budgets.
 
-**Evidence card:** ID, type, target, covered aspects, exact source IDs/spans, claim or excerpt, evidence strength, dependency manifest, and extractor/derivation versions.
+These are proposed contracts; the JSON examples and edge cases in the HLD must become typed API definitions during implementation.
 
-**Freshness association:** evidence ID, requested snapshot, state, coverage, reason codes, and observation/validation time.
+## Non-negotiable boundaries
 
-**Lookup response:** `hit`, `partial`, or `miss`; usable cards; observed snapshot; missing aspects; explicit reasons; budget/cost metadata.
+- Authenticate and authorize every search, detail fetch, and page. A cached handle does not grant access, including after permission changes.
+- Shared results describe committed snapshots. Dirty, unsaved, or unverified workspace state bypasses shared reuse; unsupported states must not silently fall back to HEAD.
+- Use the backend's actual source/index version. A client commit hint or `clean=true` is not proof.
+- TTL is retention, not freshness. Expiration or eviction returns `RESULT_EXPIRED`, not "no matches."
+- Preserve partial-provider status and paginate complete-mode requests. Do not claim grep matches are semantic references.
+- Preserve exact source text and locations; deduplicate only safe same-source overlap. Do not assume earlier excerpts remain in a model's active context.
+- Include metadata in response-budget accounting; label estimates. Count additional model turns and pinned reads.
+- Coalesce concurrent misses with bounded, owner-checked leases; do not claim universal exactly-once execution or high availability.
 
-**Tools:** `cache_lookup`, `code_read_cached`, `code_search_cached`, `cache_record`, and `cache_explain`.
+## Team workstreams
 
-Source acquisition generates hashes and anchors. Do not trust a model-supplied `fresh=true`, commit, or citation as authoritative.
+| Workstream | Deliverable | Integration boundary |
+|---|---|---|
+| Provider/source | Existing search and pinned reads, trusted snapshot resolver, capability/completeness handling | Provider-result contract |
+| Cache/access | Shared Redis records, permission-qualified keys, expiry, atomic publication, miss coalescing | Result-set lifecycle |
+| MCP/optimizer | Two typed tools, previews, detail batches, pagination, budget accounting | Model-visible responses |
+| Evaluation/demo | Two-session configuration, native baseline, workload, usage and quality measurements | Demo matrix and evidence |
 
-## Expected request flow
+Use separate clones/checkouts, branches, and agent sessions. Integrate through pull requests, not concurrent edits to a shared OneDrive directory. A shared repository or cache does not synchronize conversations or grant another person control of a live session.
 
-1. The agent supplies query, target, requested aspects, and budget.
-2. AgentCacheX resolves repository/project/access scope and the observed workspace.
-3. Exact/lexical retrieval, with optional semantic recall, produces candidates.
-4. Source freshness and coverage determine usable evidence.
-5. A miss or partial result triggers only the necessary supported acquisition and analysis.
-6. Evidence is admitted with source support and dependencies.
-7. The compiler returns bounded cited context.
-8. The existing LLM produces a new answer.
+## Demo and decision gates
 
-Normal tool exploration remains available when the cache cannot help, but failures and bypasses must be visible in metrics.
+Use a small repository with the same identifier, such as `VIP_DISCOUNT`, in C# and TypeScript files. This demonstrates language-neutral text caching, not semantic equivalence across languages.
 
-## Demo narrative
-
-- **Cold:** ask what a selected file/symbol does; acquire evidence and record the work.
-- **Warm:** rephrase the same request and demonstrate reuse without repeated broad exploration.
-- **Change:** modify a source dependency and show affected evidence being rejected/refreshed.
-- **Unrelated change:** show preserved file-local or unrelated-project evidence.
-- **Team extension:** use a separate authorized checkout to reuse clean-snapshot evidence, then demonstrate that local dirty changes invalidate it.
-
-## Performance assumptions, not results
-
-The decks model 20 developers x 15 queries/day x 220 working days = 66,000 annual requests, with 60% reusable.
-
-| Metric | Cold assumption | Warm assumption |
-|---|---:|---:|
-| Model input tokens | 8,000 | 1,500 |
-| Elapsed time | 18 seconds | 4 seconds |
-| Repository tool calls | 12 | 3 |
-
-At 60% usable reuse and no added overhead, the average is 4,100 input tokens, 9.6 seconds, and 6.6 repository calls. Modeled annual avoidance is 257.4 million input tokens, 356,400 repository calls, and 154 aggregate hours of wait.
-
-Include provider cached-input pricing, embeddings, cache lookup, extraction, invalidation, extra miss work, fixed system/tool prompts, and service overhead before claiming savings. Aggregate waiting time is not automatically recovered developer labor.
-
-Proposed gates include at least 95% supported/relevant evidence precision, zero known stale current-state serves in the mutation suite, complete source anchors, no material answer-quality regression, and a steady-state p95 lookup target below one second on stated hardware/corpus.
-
-These are target gates, not completed measurements or mathematical guarantees.
-
-## Parallel workstreams
-
-| Workstream | Ownership |
+| Scenario | Required observation |
 |---|---|
-| Storage/retrieval | Schema, exact cache keys, FTS5, optional vectors, retrieval APIs |
-| Source/freshness | Git snapshots, Roslyn extraction, dependency manifests, mutation fixtures |
-| Agent integration | MCP tools, cached acquisition, context compiler, capture coverage |
-| Evaluation/demo | Baselines, labeled questions, cost/quality metrics, demo narrative |
+| Developer A searches committed S1 | Cold provider execution and compact output |
+| Developer B repeats at S1 | Shared hit, without repeating the search |
+| B changes only the preview budget | Same captured result, differently packed output |
+| Selected details are needed | Batched exact source, or separately counted pinned expansion |
+| Source becomes S2 | Different key; source-correct new result |
+| Dirty/unknown workspace is requested | Visible bypass/unsupported state |
+| Unauthorized or expired handle is fetched | Denial or explicit expiration, never leaked/empty success |
+| Many matches exceed one budget | Explicit pages, preserved completeness |
 
-Each teammate should read this handoff and the HLD, work in their own branch/session, and integrate through pull requests. A shared repository does not automatically synchronize agent conversations.
+Compare native bounded output, optimizer-only, and optimizer-plus-cache. Record backend executions, all model input/output tokens across the task, repeated context, latency, actual billed cost where available, and answer quality.
 
-## Decisions still open
+The **10,000 -> 300 preview + 1,200 detail = 1,500 tokens** example is illustrative tool-payload arithmetic. The apparent 85% reduction is not a measured total-task saving. If the agent needs every result or performs more reasoning turns, total savings can be small or negative.
 
-- Select the pilot repository and initial file/symbol subset.
-- Choose and pin the supported .NET, Roslyn, MCP, SQLite, and optional vector packages.
-- Define the exact evidence schema and structured MCP response types.
-- Decide whether semantic recall is needed for the first demo.
-- Select an approved embedding runtime/model only if it is needed.
-- Choose the trusted project-loading/build context and handling of unresolved dependencies.
-- Decide whether the hackathon demonstrates local-only or actual cross-developer reuse.
-- Select deployment and authentication for the team hub if included.
-- Assign workstream owners and agree on acceptance criteria.
+There is no current annual ROI, latency target achieved, or measured token-reduction claim. Acceptance requires correct access/snapshot/completeness behavior, no material answer-quality regression, and worthwhile measured benefit over existing tools.
 
-## How to interpret the research
+## Still-open implementation choices
 
-The original Gemini response is brainstorming, not proof of market exclusivity or competitor limitations. The later research uses official documentation and pinned source references, but it did not establish workload performance or installed-package compatibility.
+| Choice | Direction |
+|---|---|
+| Pilot repository and tasks | Select a permitted corpus with repeated multi-developer lookups |
+| Deployment/authentication | One shared MCP endpoint; choose the approved identity and repository-access mechanism |
+| Package versions | Pin supported .NET, MCP, Redis client/server, and tokenizer dependencies when implementing |
+| Capacity and retention | Set entry size, total memory, TTL, timeout, lease, page, and source-range limits |
+| Exact token accounting | Select the agent model/tokenizer and document byte-bounded estimate behavior |
+| Success thresholds | Set workload-specific gates before measuring; do not assume a savings percentage |
 
-Graphiti's temporal validity, Mem0's memory expiration/hash, and LlamaIndex's document/transform hashes are not the same as local Git dependency freshness. Custom integrations may supply that policy; the inspected native contracts do not establish the complete guarantee.
+No open choice reintroduces custom semantic analysis, vectors, graph memory, local-only caching, or makes token optimization optional.
 
-The design should evolve with evidence. Preserve the original inputs, date revised findings, and keep measured results distinct from proposals.
+## History and preserved context
+
+The original materials proposed a broader evidence/memory layer, a C# pilot, dependency-aware freshness, and modeled savings. Later research compared storage and memory frameworks. The user clarified language independence, then asked to simplify around existing agent tools while retaining token optimization and shared use.
+
+That progression **supersedes** the evidence-card/Roslyn-adapter/SQLite/FTS5/vector/dependency-graph implementation plan. The current README, HLD, diagram, and all three decks describe the focused shared-cache solution. Original deck versions remain in Git history; original brainstorming and dated research remain accessible.
+
+[CONVERSATION.md](CONVERSATION.md) preserves the evolution, including repository creation under `Avish34`, the subsequent public-visibility decision, language clarification, video removal, and focused MVP decision. [GeminiResponse.txt](GeminiResponse.txt) remains brainstorming, not verified market evidence.
+
+The intended repository is [Avish34/AgentCacheX](https://github.com/Avish34/AgentCacheX). Public visibility permits viewing/forking and proposing pull requests, not automatic write access. The earlier repository under the initially active account was left untouched.
+
+The user's artifact-handling constraint remains: **do not read SVG or PNG files**. The updated decks use native editable shapes/text rather than image assets; video creation is not part of this task.

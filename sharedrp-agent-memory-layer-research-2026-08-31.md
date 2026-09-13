@@ -1,5 +1,7 @@
 # SharedRP Agent Memory Layer Research
 
+> **Historical input:** This August 31 research describes the earlier memory/evidence direction. AgentCacheX's current MVP is a shared tool-result cache plus token-efficient responses, without an owned semantic-analysis or evidence-store platform. See the [current HLD](AgentCacheX-High-Level-Design.md). The original research body below is preserved.
+
 > **Date:** 2026-08-31  
 > **Scope:** Open-source memory, retrieval, caching, provenance, and MCP integration patterns for the SharedRP agent  
 > **Status:** Research and architecture recommendation; no implementation included

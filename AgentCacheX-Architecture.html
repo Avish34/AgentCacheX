@@ -59,15 +59,15 @@
 <body>
   <header>
     <div class="eyebrow">AgentCacheX / Proposed high-level design</div>
-    <h1>Reuse evidence. Keep the answer current.</h1>
-    <p class="subtitle">Three connected views of the request path, source-aware storage, and cross-developer reuse.</p>
+    <h1>Shared lookups. Smaller agent context.</h1>
+    <p class="subtitle">One repository, multiple developers, any language. Cache existing tool results; return only the details needed.</p>
   </header>
   <main>
     <div class="toolbar">
       <nav aria-label="Architecture views">
-        <button type="button" data-view="request" aria-pressed="true">1. Request flow</button>
-        <button type="button" data-view="state" aria-pressed="false">2. Storage &amp; invalidation</button>
-        <button type="button" data-view="team" aria-pressed="false">3. Team sharing</button>
+        <button type="button" data-view="request" aria-pressed="true">1. Shared architecture</button>
+        <button type="button" data-view="state" aria-pressed="false">2. Token flow</button>
+        <button type="button" data-view="team" aria-pressed="false">3. Safe reuse</button>
       </nav>
       <div class="controls" aria-label="Diagram controls">
         <button type="button" id="fit">Fit</button>
@@ -86,9 +86,9 @@
     <p id="view-caption" class="subtitle"></p>
     <div class="legend" aria-label="Diagram legend">
       <span>Request / data flow</span>
-      <span class="fresh">Fresh evidence / answer path</span>
-      <span class="refresh">Cold miss / partial refresh</span>
-      <span class="change">Change / invalidation</span>
+      <span class="fresh">Reused result / compact output</span>
+      <span class="refresh">Miss / pinned source read</span>
+      <span class="change">Bypass / explicit failure</span>
       <span class="optional">Optional / later deployment</span>
     </div>
     <div id="viewport">
@@ -104,143 +104,103 @@
   </main>
   <footer>
     Based on <a href="AgentCacheX-High-Level-Design.md">AgentCacheX-High-Level-Design.md</a>.
-    Architecture proposal, not an implemented system. Saved files are the initial scope; editor buffers require an explicit adapter.
+    Proposed MVP, not an implemented service or measured benchmark. Shared caching requires verified committed snapshots.
   </footer>
   <script>
     "use strict";
     const graphs = {
       request: {
-        title: "01 / Cold, warm, and partial request flow",
-        caption: "The existing coding agent remains in control. AgentCacheX returns compact, cited context; it does not blindly replay an answer.",
-        width: 1500, height: 1320,
+        title: "01 / Shared cache + token optimizer",
+        caption: "A cold lookup runs an existing provider. Another authorized developer can reuse its result. Both paths return compact output, not a cached answer.",
+        width: 1500, height: 1000,
         nodes: [
-          { id: "agent", x: 550, y: 35, w: 360, h: 110, title: "Developer + coding agent", lines: ["Question, explicit file / symbol", "Intent, requested aspects, token budget"] },
-          { id: "mcp", x: 550, y: 215, w: 360, h: 95, title: "Local MCP adapter", lines: ["C# / .NET + official MCP SDK", "cache_lookup / cache_explain"] },
-          { id: "policy", x: 60, y: 215, w: 360, h: 110, kind: "boundary", title: "Access and source boundary", lines: ["Configured repository and allowed roots", "Principal partition, exclusions, no secrets", "Applied to acquisition and every lookup"] },
-          { id: "scope", x: 550, y: 375, w: 360, h: 95, title: "Request + scope resolver", lines: ["Repository, checkout, ref, target, project", "Normalize intent and required coverage"] },
-          { id: "source", x: 60, y: 535, w: 360, h: 110, title: "Repository + build context", lines: ["Saved source, staged / dirty / new files", "Project inputs, references, configuration"] },
-          { id: "lookup", x: 550, y: 535, w: 360, h: 110, title: "Scoped candidate retrieval", lines: ["Exact keys -> FTS5 lexical retrieval", "Optional embeddings + sqlite-vec"] },
-          { id: "store", x: 1050, y: 535, w: 380, h: 110, kind: "store", title: "L1: local evidence + indexes", lines: ["SQLite: artifacts, cards, dependency links", "Source anchors, versions, validation records"] },
-          { id: "snapshot", x: 60, y: 750, w: 360, h: 115, title: "Git / workspace snapshot", lines: ["Actual bytes and content fingerprints", "Project + reference dependency manifests", "Watchers accelerate; hashes decide"] },
-          { id: "gate", x: 550, y: 750, w: 360, h: 115, kind: "gate", title: "Freshness + coverage gate", lines: ["Check source / dependency fingerprints", "Separate freshness from evidence support", "HIT / PARTIAL / MISS + explicit reasons"] },
-          { id: "compile", x: 1050, y: 750, w: 380, h: 115, kind: "fresh", title: "Context compiler", lines: ["Rank, deduplicate, preserve source excerpts", "Citations + observed snapshot + missing aspects", "Fit the serialized evidence budget"] },
-          { id: "acquire", x: 60, y: 1010, w: 360, h: 125, kind: "refresh", title: "Acquire only missing evidence", lines: ["code_read_cached / code_search_cached", "Roslyn syntax + semantic analysis", "Record exact source/tool artifacts", "Normal exploration on explicit failure"] },
-          { id: "admit", x: 550, y: 1010, w: 360, h: 125, kind: "refresh", title: "Evidence admission", lines: ["Source excerpts + deterministic facts", "Derived summaries stay labeled", "Recheck snapshot; publish transactionally", "cache_record does not self-certify truth"] },
-          { id: "answer", x: 1050, y: 1010, w: 380, h: 125, kind: "fresh", title: "Fresh user-facing answer", lines: ["MCP returns context to the coding agent", "Existing answering LLM generates the response", "Original question + compact cited evidence", "No automatic patch or trajectory replay"] },
-          { id: "metrics", x: 550, y: 1210, w: 880, h: 90, kind: "boundary", title: "Cross-cutting metrics, diagnostics, and audit", lines: ["Hit/miss reasons, capture coverage, tokens, tool calls, lookup/refresh/embedding cost, cache_explain lineage"] }
+          { id: "agentA", x: 70, y: 50, w: 350, h: 135, title: "Developer A + agent", lines: ["Own session and checkout", "Query + requested snapshot + budget"] },
+          { id: "mcp", x: 575, y: 50, w: 350, h: 135, title: "Shared MCP service", lines: ["search_compact / fetch_details", "Proposed ASP.NET Core + MCP SDK", "Host language does not limit source"] },
+          { id: "agentB", x: 1080, y: 50, w: 350, h: 135, title: "Developer B + agent", lines: ["Independent session and checkout", "Same authorized repository"] },
+          { id: "gate", x: 575, y: 290, w: 350, h: 135, kind: "gate", title: "Access + snapshot gate", lines: ["Authenticate and authorize each call", "Verify the actual searched revision", "Unsupported state -> explicit response"] },
+          { id: "lookup", x: 575, y: 530, w: 350, h: 135, title: "Exact result lookup", lines: ["Repository + snapshot + tool version", "Canonical arguments + access scope", "Preview budget is not in the raw key"] },
+          { id: "store", x: 1080, y: 530, w: 350, h: 135, kind: "store", title: "Shared Redis", lines: ["Immutable captured tool responses", "Item IDs, snapshots, expiry, pointers", "Bounded concurrent-miss coordination"] },
+          { id: "provider", x: 70, y: 530, w: 350, h: 135, kind: "refresh", title: "Existing read-only provider", lines: ["Pilot: git grep at a pinned commit", "Text matches across source languages", "No custom semantic-analysis engine"] },
+          { id: "optimizer", x: 575, y: 800, w: 350, h: 135, kind: "fresh", title: "Budgeted response to agents", lines: ["Compact preview / selected exact text", "Source locations + explicit pagination", "Agent still reasons and writes an answer"] }
         ],
         edges: [
-          { from: "agent", to: "mcp", label: "1. Explicit MCP tool call" },
-          { from: "mcp", to: "scope", label: "2. Resolve request" },
-          { from: "scope", to: "lookup", label: "3. Retrieve candidates" },
-          { from: "store", to: "lookup", fromPort: "left", toPort: "right", label: "Candidate IDs", lx: 980, ly: 570 },
-          { from: "source", to: "snapshot", label: "Observe saved workspace" },
-          { from: "snapshot", to: "gate", fromPort: "right", toPort: "left", label: "Manifests", lx: 485, ly: 795 },
-          { from: "lookup", to: "gate", label: "4. Candidate cards" },
-          { from: "gate", to: "compile", fromPort: "right", toPort: "left", kind: "fresh", label: "HIT / valid subset", lx: 980, ly: 790 },
-          { from: "gate", to: "acquire", kind: "refresh", points: [[730, 925], [240, 925]], label: "MISS / missing PARTIAL aspects", lx: 480, ly: 912 },
-          { from: "acquire", to: "admit", fromPort: "right", toPort: "left", kind: "refresh", label: "New cards", lx: 485, ly: 1055 },
-          { from: "admit", to: "gate", fromPort: "right", toPort: "top", kind: "refresh", points: [[965, 1072.5], [965, 705], [730, 705]], label: "Re-enter gate", lx: 970, ly: 960 },
-          { from: "admit", to: "store", fromPort: "right", toPort: "bottom", kind: "refresh", points: [[1015, 1072.5], [1015, 685], [1240, 685]], label: "Persist", lx: 1125, ly: 676 },
-          { from: "compile", to: "answer", kind: "fresh", label: "5. Return context through the host" },
-          { from: "acquire", to: "source", fromPort: "left", toPort: "left", kind: "refresh", points: [[28, 1072.5], [28, 590]], label: "Read", lx: 28, ly: 960 },
-          { from: "scope", to: "policy", fromPort: "left", toPort: "right", points: [[470, 422.5], [470, 270]], label: "Scope policy", lx: 470, ly: 355 }
+          { from: "agentA", to: "mcp", fromPort: "right", toPort: "left", label: "Explicit tool calls" },
+          { from: "agentB", to: "mcp", fromPort: "left", toPort: "right", label: "Same endpoint" },
+          { from: "mcp", to: "gate", label: "Validate request" },
+          { from: "gate", to: "lookup", label: "Verified committed snapshot" },
+          { from: "store", to: "lookup", fromPort: "left", toPort: "right", kind: "fresh", label: "Retained hit" },
+          { from: "lookup", to: "provider", fromPort: "left", toPort: "right", kind: "refresh", label: "Miss" },
+          { from: "provider", to: "store", toPort: "bottom", kind: "refresh", points: [[245, 715], [1255, 715]], label: "Publish full captured result", lx: 1175, ly: 700 },
+          { from: "lookup", to: "optimizer", kind: "fresh", label: "Cached result", lx: 815, ly: 765 },
+          { from: "provider", to: "optimizer", toPort: "left", kind: "refresh", points: [[245, 750], [510, 750], [510, 867.5]], label: "Optimize misses too", lx: 290, ly: 850 }
         ],
         notes: [
-          ["Warm path", "A fresh, adequately supported hit skips redundant exploration. A partial hit retains valid cards and refreshes only missing coverage."],
-          ["Cold path", "Acquire source through the supported tools, extract Roslyn evidence, attach dependency manifests, and return new cards through the same freshness gate."],
-          ["Important boundary", "An MCP server cannot intercept unrelated tools or infer unsaved IDE buffers. Capture coverage and saved-file scope must remain explicit."]
+          ["Two separate benefits", "Redis reduces repeated backend work. The optimizer reduces unnecessary model-visible output on both misses and hits. A cached large response alone does not reduce context."],
+          ["Reuse existing capabilities", "The Git pilot is text search, not semantic references. Existing providers can supply richer analysis later; Roslyn, language servers, embeddings, and graph stores are not MVP dependencies."],
+          ["Actual shared deployment", "One service and one Redis instance support multiple developers, not high availability. Agents must use this wrapper explicitly; MCP registration does not intercept other tools."]
         ]
       },
       state: {
-        title: "02 / Source, evidence, indexes, and invalidation",
-        caption: "Artifacts are immutable. Freshness belongs to an evidence-to-snapshot association, not to one global flag on a cached fact.",
-        width: 1530, height: 1240,
-        groups: [
-          { x: 30, y: 490, w: 1440, h: 230, title: "AUTHORITATIVE LOCAL SQLITE / one coherent publication boundary" },
-          { x: 30, y: 785, w: 1440, h: 195, title: "REBUILDABLE RETRIEVAL INDEXES / not the source of truth" }
-        ],
+        title: "02 / Progressive disclosure, not generated summaries",
+        caption: "Illustrative tool payload: 10,000 raw tokens -> 300 preview + 1,200 selected details = 1,500. This is not a measured total-task saving.",
+        width: 1500, height: 1000,
         nodes: [
-          { id: "repo", x: 60, y: 65, w: 350, h: 115, title: "Repository / working tree", lines: ["Source bytes, relevant new / dirty files", "Project and reference source closure", "Configuration and generated inputs"] },
-          { id: "snapshot", x: 575, y: 65, w: 350, h: 115, title: "Snapshot + manifest provider", lines: ["Git state + actual consumed hashes", "Ref, checkout, project context", "Snapshot ID and source anchors"] },
-          { id: "invalidate", x: 1090, y: 65, w: 350, h: 115, kind: "change", title: "Selective invalidation", lines: ["Changed source / scope / configuration", "Follow dependencies and derived records", "Unknown closure -> conservative refresh"] },
-          { id: "tools", x: 60, y: 300, w: 350, h: 115, title: "Cached acquisition tools", lines: ["code_read_cached / code_search_cached", "Canonical arguments and tool versions", "Search completeness + negative results"] },
-          { id: "roslyn", x: 575, y: 300, w: 350, h: 115, title: "Roslyn analyzer", lines: ["Syntax / AST + symbol binding", "References, snippets, deterministic facts", "Surface unresolved compilation context"] },
-          { id: "admit", x: 1090, y: 300, w: 350, h: 115, kind: "gate", title: "Support + snapshot admission", lines: ["Source support, evidence strength", "Derivation versions, dependency coverage", "No model-supplied 'fresh' flag"] },
-          { id: "artifacts", x: 60, y: 550, w: 350, h: 130, kind: "store", title: "Immutable artifacts / exact cache", lines: ["Source bytes + hashes + spans", "Structured tool results and parser outputs", "Tool keys + searched-corpus fingerprints", "Historical snapshots retained"] },
-          { id: "evidence", x: 575, y: 550, w: 350, h: 130, kind: "store", title: "Evidence + dependencies", lines: ["Cards, target, aspects, source IDs", "File / project / search-scope dependencies", "Extractor, prompt, model versions", "Derived claims retain support links"] },
-          { id: "validations", x: 1090, y: 550, w: 350, h: 130, kind: "store", title: "Snapshot associations", lines: ["Fresh / historical / suspect / stale", "Tombstones, revocations, reason codes", "Validation times + coverage", "Status is per requested snapshot"] },
-          { id: "exact", x: 60, y: 835, w: 350, h: 105, title: "Exact identifier / path index", lines: ["Case-preserving identity where applicable", "Scope + intent + target + aspects"] },
-          { id: "fts", x: 575, y: 835, w: 350, h: 105, title: "SQLite FTS5", lines: ["Lexical retrieval and ranking", "Application-maintained index consistency"] },
-          { id: "vector", x: 1090, y: 835, w: 350, h: 120, kind: "optional", title: "Embedding provider + sqlite-vec", lines: ["Optional semantic candidate recall", "Approved local model / endpoint", "Model, preprocessing, dimensions versioned"] },
-          { id: "metrics", x: 60, y: 1090, w: 350, h: 115, kind: "boundary", title: "Usage + audit + retention", lines: ["Every stage emits structured metrics", "Diagnostics, lineage, cache_explain", "Size limits, deletion, bounded writes"] },
-          { id: "retrieve", x: 575, y: 1090, w: 350, h: 115, title: "Scoped retriever", lines: ["Hard repository / principal constraints", "Exact -> lexical -> optional semantic", "Candidate IDs, not presumed truth"] },
-          { id: "compile", x: 1090, y: 1090, w: 350, h: 115, kind: "fresh", title: "Freshness gate + compiler", lines: ["Resolve authoritative evidence", "Validate manifests and requested coverage", "Emit bounded, cited context"] }
+          { id: "raw", x: 70, y: 50, w: 350, h: 135, title: "Full captured tool response", lines: ["Illustrative raw payload: 10,000 tokens", "Provider ranking and original fields", "One captured page is not the whole repo"] },
+          { id: "artifact", x: 575, y: 50, w: 350, h: 135, kind: "store", title: "Redis result set R17", lines: ["Retained outside model context", "Immutable items r1, r2, r3...", "Snapshot + scope + expiration"] },
+          { id: "preview", x: 1080, y: 50, w: 350, h: 135, kind: "fresh", title: "search_compact: preview", lines: ["Illustrative output: 300 tokens", "Paths, lines, IDs, short exact excerpts", "Counts + visible continuation"] },
+          { id: "select", x: 1080, y: 300, w: 350, h: 135, title: "Agent selects r1 and r2", lines: ["Choose relevant source, not all output", "Request both items in one batch", "Complete-mode requests use pages"] },
+          { id: "fetch", x: 575, y: 300, w: 350, h: 135, title: "fetch_details(R17, selections)", lines: ["Reauthorize and check expiration", "Retrieve retained exact source ranges", "Keep the same source snapshot"] },
+          { id: "read", x: 70, y: 300, w: 350, h: 135, kind: "refresh", title: "Pinned read when needed", lines: ["Only if expansion was not captured", "Existing provider reads the same commit", "Cache and count this extra backend call"] },
+          { id: "pack", x: 575, y: 550, w: 350, h: 135, title: "Deterministic budget packer", lines: ["Group metadata; merge safe overlaps", "Keep exact text and source locations", "Disclose partial ranges / pending items"] },
+          { id: "details", x: 1080, y: 550, w: 350, h: 135, kind: "fresh", title: "Selected details to the agent", lines: ["Illustrative detail output: 1,200 tokens", "300 + 1,200 = 1,500 payload tokens", "Agent writes a new grounded answer"] },
+          { id: "metrics", x: 575, y: 800, w: 350, h: 135, kind: "boundary", title: "Measure the entire task", lines: ["All model turns and repeated history", "Backend calls, latency, and answer quality", "Compare with native filters and limits"] }
         ],
         edges: [
-          { from: "repo", to: "snapshot", fromPort: "right", toPort: "left", label: "Observed inputs" },
-          { from: "snapshot", to: "invalidate", fromPort: "right", toPort: "left", kind: "change", label: "Compare manifests" },
-          { from: "repo", to: "tools", label: "Exact source bytes" },
-          { from: "snapshot", to: "roslyn", label: "Compilation context" },
-          { from: "tools", to: "roslyn", fromPort: "right", toPort: "left", label: "Source artifacts" },
-          { from: "roslyn", to: "admit", fromPort: "right", toPort: "left", label: "Candidate evidence" },
-          { from: "tools", to: "artifacts", label: "Persist acquired results" },
-          { from: "admit", to: "evidence", points: [[1265, 460], [750, 460]], label: "Admit supported cards", lx: 1005, ly: 449 },
-          { from: "artifacts", to: "evidence", fromPort: "right", toPort: "left", label: "Source IDs" },
-          { from: "evidence", to: "validations", fromPort: "right", toPort: "left", label: "Snapshot status" },
-          { from: "invalidate", to: "validations", fromPort: "right", toPort: "right", kind: "change", points: [[1490, 122.5], [1490, 615]], label: "Mark affected", lx: 1470, ly: 235 },
-          { from: "artifacts", to: "exact", label: "Index keys" },
-          { from: "evidence", to: "fts", label: "Index card text" },
-          { from: "evidence", to: "vector", kind: "optional", points: [[750, 750], [1265, 750]], label: "Embed once per version", lx: 1050, ly: 738 },
-          { from: "exact", to: "retrieve", points: [[235, 1025], [750, 1025]], label: "Exact", lx: 440, ly: 1013 },
-          { from: "fts", to: "retrieve", label: "Lexical", lx: 750, ly: 995 },
-          { from: "vector", to: "retrieve", kind: "optional", points: [[1265, 1048], [750, 1048]], label: "Semantic", lx: 1050, ly: 1035 },
-          { from: "retrieve", to: "compile", fromPort: "right", toPort: "left", kind: "fresh", label: "Candidate IDs" }
+          { from: "raw", to: "artifact", fromPort: "right", toPort: "left", label: "Store off-context" },
+          { from: "artifact", to: "preview", fromPort: "right", toPort: "left", kind: "fresh", label: "Pack preview" },
+          { from: "preview", to: "select", label: "Choose what is needed" },
+          { from: "select", to: "fetch", fromPort: "left", toPort: "right", label: "One batch" },
+          { from: "fetch", to: "read", fromPort: "left", toPort: "right", kind: "refresh", label: "Missing source range" },
+          { from: "fetch", to: "pack", label: "Retained exact text" },
+          { from: "read", to: "pack", toPort: "left", kind: "refresh", points: [[245, 490], [510, 490], [510, 617.5]], label: "Same snapshot", lx: 290, ly: 595 },
+          { from: "pack", to: "details", fromPort: "right", toPort: "left", kind: "fresh", label: "Within budget" },
+          { from: "details", to: "metrics", points: [[1255, 750], [750, 750]], label: "Count added turns too", lx: 1100, ly: 738 }
         ],
         notes: [
-          ["Source change is not a cache flush", "Invalidate affected snapshot associations and derived evidence. Keep immutable history and unrelated file-local cards."],
-          ["Conservative before clever", "A new overload or partial declaration can change binding. Use project/reference closure fingerprints before claiming precise semantic invalidation."],
-          ["Local disk only", "Store runtime data outside OneDrive, for example under %LOCALAPPDATA%\\AgentCacheX. SQLite WAL is same-host with one writer at a time."]
+          ["Do not hide information", "Full captured results remain retrievable, with provider limits and continuation preserved. Complete-mode requests need all captured matches or explicit pages, not unexplained top-k results."],
+          ["Exact text, honest budgets", "Include metadata in the response budget. Label estimates when the matching tokenizer is unavailable. Deduplicate within the response; do not assume earlier excerpts survived context compaction."],
+          ["Illustration, not a benchmark", "The example is 85% less tool payload, not 85% less total task cost. If all details are needed or additional turns repeat history, savings may disappear. Keep pinned source reads visible in metrics."]
         ]
       },
       team: {
-        title: "03 / Optional team sharing and scale-out",
-        caption: "Share supported evidence for clean snapshots, not chat sessions or a live SQLite file. The receiving checkout makes the final freshness decision.",
-        width: 1500, height: 1170,
+        title: "03 / Source, access, and result lifecycle",
+        caption: "Shared use is core, not a later extension. Equivalent authorized requests can share; changed snapshots, unsupported states, and expired handles have explicit behavior.",
+        width: 1500, height: 1020,
         nodes: [
-          { id: "agentA", x: 60, y: 65, w: 350, h: 100, title: "Developer A + coding agent", lines: ["Own session, checkout, and credentials", "Uses the local MCP adapter"] },
-          { id: "canonical", x: 575, y: 65, w: 350, h: 100, title: "Trusted repository source", lines: ["Canonical clean, immutable snapshots", "Source and dependency verification"] },
-          { id: "agentB", x: 1090, y: 65, w: 350, h: 100, title: "Developer B + coding agent", lines: ["Independent session and checkout", "Same authorized repository scope"] },
-          { id: "localA", x: 60, y: 305, w: 350, h: 120, title: "A: local MCP adapter", lines: ["Lookup / acquisition / context compilation", "Publish only eligible clean-snapshot evidence", "Dirty worktree evidence stays local"] },
-          { id: "hub", x: 575, y: 305, w: 350, h: 120, kind: "optional", title: "Authenticated team cache hub", lines: ["Protected API + repository authorization", "Source-support admission and revocation", "Client summaries are not self-certified"] },
-          { id: "localB", x: 1090, y: 305, w: 350, h: 120, title: "B: local MCP adapter", lines: ["Local lookup first; team query when useful", "Treat shared cards as candidates", "Observe B's own saved-workspace manifest"] },
-          { id: "l1A", x: 60, y: 555, w: 350, h: 120, kind: "store", title: "A: private L1 SQLite", lines: ["Principal / checkout partition", "Local artifacts, evidence, indexes", "Uncommitted edits are not uploaded"] },
-          { id: "l2", x: 575, y: 555, w: 350, h: 120, kind: "optional", title: "L2: shared clean-snapshot cache", lines: ["Single-host, server-local SQLite for demo", "Canonical artifacts + evidence + manifests", "Clients access the service, never this file"] },
-          { id: "l1B", x: 1090, y: 555, w: 350, h: 120, kind: "store", title: "B: private L1 SQLite", lines: ["Local snapshot associations and overlays", "Shared evidence still needs local freshness", "Supported results can populate local cache"] },
-          { id: "policy", x: 60, y: 805, w: 350, h: 120, kind: "boundary", title: "Cross-cutting team controls", lines: ["Authentication, repository access, transport", "No secrets or excluded source capture", "Audit, retention, rate and request limits"] },
-          { id: "refresh", x: 575, y: 805, w: 350, h: 120, kind: "refresh", title: "Local miss / partial refresh", lines: ["Acquire only missing or changed evidence", "Use B's repository, not A's dirty state", "Re-enter the local request flow"] },
-          { id: "gateB", x: 1090, y: 805, w: 350, h: 120, kind: "gate", title: "B: freshness + coverage gate", lines: ["Compare shared dependencies to B's source", "Reject stale / suspect candidates", "Keep only supported current cards"] },
-          { id: "scale", x: 575, y: 1030, w: 350, h: 115, kind: "optional", title: "Later: PostgreSQL + Qdrant", lines: ["PostgreSQL: authoritative shared records", "Qdrant: optional rebuildable retrieval index", "Versioned outbox / publication boundary"] },
-          { id: "answerB", x: 1090, y: 1030, w: 350, h: 115, kind: "fresh", title: "B: compiler -> agent -> LLM", lines: ["Compact cited context from current evidence", "New answer to B's original question", "Cross-developer reuse without shared state"] }
+          { id: "request", x: 575, y: 50, w: 350, h: 135, title: "Each search / detail / page", lines: ["Separate developers and sessions", "Opaque result IDs are not permission"] },
+          { id: "auth", x: 575, y: 250, w: 350, h: 135, kind: "gate", title: "Current authorization", lines: ["Server-derived effective visibility", "Repository and content-policy checks", "Recheck after permission changes"] },
+          { id: "deny", x: 1080, y: 250, w: 350, h: 135, kind: "change", title: "Deny unauthorized access", lines: ["No payload disclosure", "No client-selected authorization scope"] },
+          { id: "snapshot", x: 575, y: 450, w: 350, h: 135, kind: "gate", title: "Actual source / index revision", lines: ["Verify what the provider searches", "Details remain pinned to their snapshot", "A commit hint is not source proof"] },
+          { id: "bypass", x: 1080, y: 450, w: 350, h: 135, kind: "change", title: "Dirty / unknown state", lines: ["Bypass shared caching", "If backend cannot represent it: unsupported", "Never silently substitute committed HEAD"] },
+          { id: "key", x: 575, y: 650, w: 350, h: 135, title: "Versioned result identity", lines: ["Repo + source/index + tool version", "Arguments + access/policy + schema", "New revision -> new key, even if unrelated"] },
+          { id: "redis", x: 575, y: 850, w: 350, h: 135, kind: "store", title: "Retained shared result", lines: ["Equivalent scope: A and B can share", "No username / preview-budget partition", "TTL is retention, not source freshness"] },
+          { id: "expiry", x: 1080, y: 850, w: 350, h: 135, kind: "change", title: "RESULT_EXPIRED", lines: ["Expired or evicted detail handle", "Repeat the search to get a new handle", "Not an empty successful match list"] },
+          { id: "lease", x: 70, y: 850, w: 350, h: 135, kind: "refresh", title: "Coalesce concurrent misses", lines: ["Bounded, owner-checked expiring leases", "Publish complete payload before pointer", "Not an exactly-once guarantee"] }
         ],
         edges: [
-          { from: "agentA", to: "localA", label: "Local stdio MCP" },
-          { from: "agentB", to: "localB", label: "Local stdio MCP" },
-          { from: "canonical", to: "hub", label: "Canonical source admission" },
-          { from: "localA", to: "hub", fromPort: "right", toPort: "left", kind: "optional", label: "Clean evidence", lx: 492, ly: 350 },
-          { from: "hub", to: "localB", fromPort: "right", toPort: "left", kind: "optional", label: "Shared candidates", lx: 1007, ly: 350 },
-          { from: "localA", to: "l1A", label: "Private artifacts" },
-          { from: "hub", to: "l2", kind: "optional", label: "Serve / persist" },
-          { from: "localB", to: "l1B", label: "Local candidates / cache" },
-          { from: "l1B", to: "gateB", label: "Revalidate for B" },
-          { from: "gateB", to: "refresh", fromPort: "left", toPort: "right", kind: "refresh", label: "Mismatch / missing", lx: 1007, ly: 850 },
-          { from: "gateB", to: "answerB", kind: "fresh", label: "Fresh / covered evidence" },
-          { from: "l2", to: "scale", fromPort: "left", toPort: "left", kind: "optional", points: [[490, 615], [490, 1087.5]], label: "Only if scale requires", lx: 490, ly: 965 }
+          { from: "request", to: "auth", label: "Authenticate" },
+          { from: "auth", to: "deny", fromPort: "right", toPort: "left", kind: "change", label: "Not allowed" },
+          { from: "auth", to: "snapshot", label: "Authorized" },
+          { from: "snapshot", to: "bypass", fromPort: "right", toPort: "left", kind: "change", label: "Not verifiable" },
+          { from: "snapshot", to: "key", label: "Verified snapshot" },
+          { from: "key", to: "redis", label: "Lookup / retain" },
+          { from: "redis", to: "expiry", fromPort: "right", toPort: "left", kind: "change", label: "Handle absent" },
+          { from: "redis", to: "lease", fromPort: "left", toPort: "right", kind: "refresh", label: "Search miss" }
         ],
         notes: [
-          ["Not session co-editing", "Each developer keeps an independent coding-agent session. Shared evidence is a service capability, not shared chat or filesystem state."],
-          ["Local is not team-wide", "A local-only demo shows same-machine reuse. Cross-developer savings require the authenticated L2 path shown here."],
-          ["Optional infrastructure", "A single service with server-local SQLite is enough for the team demo. Add PostgreSQL/Qdrant only when measured scale warrants it."]
+          ["Share only what both users may see", "Cache identity includes the effective authorization and content-policy version. Equivalent access can share; more restricted or user-specific results remain isolated."],
+          ["Source correctness is separate from retention", "A different commit intentionally misses. A detail expansion uses the original source snapshot or reports SNAPSHOT_UNAVAILABLE. Unknown index versions are never labeled as the requested commit."],
+          ["Small deployment, explicit failure", "Redis is private to the shared service. Do not share database files through OneDrive. Provider/cache failures are explicit, not successful zero-match responses. Replicas and high availability are later choices."]
         ]
       }
     };

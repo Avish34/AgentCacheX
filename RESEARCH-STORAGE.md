@@ -4,9 +4,11 @@
 **Scope:** Public infrastructure for local-first and shared repository-aware coding-agent evidence caching  
 **Method:** Official documentation and source inspection; no workload benchmarks, managed-service quotes, or packaged compatibility measurements
 
-This report preserves the detailed storage/cache findings used to produce the HLD.
+> **Historical research - superseded implementation recommendation (2026-09-13).** The current MVP uses a shared Redis tool-result cache plus a deterministic token optimizer. SQLite/FTS5, vector retrieval, and an evidence store are not current requirements. See the [current HLD](AgentCacheX-High-Level-Design.md) and [README](README.md).
 
-## Recommendation
+This report preserves the detailed storage/cache findings that informed the earlier, broader design. Its component comparisons remain research context; the recommendation below is historical, not the selected MVP stack.
+
+## Historical recommendation
 
 Use **SQLite + FTS5 locally, with sqlite-vec optional**. At shared scale, use **Qdrant as a rebuildable retrieval index**, not the authority for evidence or freshness.
 

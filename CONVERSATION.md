@@ -1,8 +1,11 @@
 # AgentCacheX: Project Conversation
 
-**Date:** 2026-09-11
+**Started:** 2026-09-11  
+**Updated:** 2026-09-13 - shared tool-result cache and token optimizer
 
-This captures the project-facing prompts and final responses from the discovery, research, design, and diagram discussions. Typography is normalized to plain ASCII; the original documents and presentations are retained separately. Research details are in the two research reports and HLD. Credentials, machine-specific runtime state, and tool execution logs are not project documentation.
+This captures project-facing prompts, responses, and later decision summaries. Typography is normalized to plain ASCII. Original research inputs remain separately available; original deck versions are retained in Git history, with current decks refactored to the agreed MVP. Credentials, machine-specific runtime state, and tool execution logs are not project documentation.
+
+> **Read this as history, not the current specification.** Sections 1-9 include superseded evidence-card, analyzer, SQLite, and dependency-graph proposals. Sections 10-13 explain the focused shared tool-result cache plus token optimizer. Use [README.md](README.md) and the [current HLD](AgentCacheX-High-Level-Design.md) for implementation.
 
 ## 1. Initial folder review
 
@@ -195,3 +198,85 @@ Private personal repositories require invitations to specific GitHub accounts; t
 ### Repository visibility
 
 [Avish34/AgentCacheX](https://github.com/Avish34/AgentCacheX) is now public. Anyone can view, clone, or fork the project and propose changes through pull requests. Direct write access still requires a collaborator invitation. The earlier repository under the initially active account remains untouched.
+
+## 8. Language-agnostic product clarification
+
+**Date:** 2026-09-13
+
+### User
+
+> We are building programming agnostic cache, rosyln will just be used for chsarp
+
+### Design clarification
+
+AgentCacheX is programming-language-agnostic. Its common core handles evidence, caching, retrieval, freshness policy, context compilation, and MCP integration. Language-specific analyzers plug into that core; Roslyn is used only in the C# analyzer.
+
+The C# walkthrough is an example, not a product limitation. Other languages use their own analyzers; absent semantic support must be reported explicitly rather than silently inferred. Current design, diagram, and video materials are updated to reflect this boundary, while original decks and historical research remain preserved.
+
+## 9. Semantic analysis and video removal
+
+**Date:** 2026-09-13
+
+### User
+
+> what should we do for sematnic anyalsis then? Delete the video also. Explain me with simple examples.
+
+### Follow-up
+
+The video and its supporting player, captions, and generation scripts were removed. The architecture diagram and original presentations remain.
+
+The proposed semantic approach distinguishes two tasks: embeddings can retrieve similarly intended questions/evidence, while language-specific compilers or language servers resolve code symbols, types, and references. A shared adapter contract, with LSP for supported common operations and direct compiler integrations where useful, keeps the cache core language-neutral. Roslyn remains the C# analyzer. All returned evidence still needs source snapshots, declared dependency coverage, and freshness checks.
+
+## 10. Simplifying around existing agent tools
+
+### User
+
+> How current agents searches the file, what tools they use for symbols and relationships? I want to simple the solution and focus on one core problem that can be sovled.
+
+### Decision summary
+
+Agents already use file discovery, text search, source reads, semantic indexes, and language-aware definition/reference tools. Their exact capabilities depend on the host and provider.
+
+AgentCacheX should not reproduce those engines. The focused problem is repeated read-only repository tool calls and unnecessarily large results. Cache existing provider responses, qualified by actual repository/source/tool/argument/access identity. The MVP no longer requires owned Roslyn/LSP adapters, AST comparison, embeddings, graph memory, or generated evidence cards.
+
+## 11. Keeping token optimization
+
+### User
+
+> We still need token optimizier, think of how can we achieve it
+
+### Decision summary
+
+Caching an oversized response without changing what reaches the model does not solve token waste. Store full captured results outside model context, return a compact source-anchored preview, and let the agent fetch selected details in a batch.
+
+The proposed primary tools are `search_compact` and `fetch_details`. Deterministic grouping, safe snippet deduplication, explicit pagination, and response budgets replace a broad semantic context-compiler project. Preserve exact source text; do not silently truncate exhaustive requests or assume earlier snippets remain in context.
+
+Illustrative arithmetic: 10,000 raw output tokens versus 300 preview plus 1,200 selected-detail tokens. The apparent 85% reduction applies to tool payload only. Measure all model turns, repeated history, latency, billed cost, and answer quality before making product claims.
+
+## 12. Shared cache for multiple developers
+
+### User
+
+> Can this be distrubuted cache so that mutliple devs can use it for a single repo?
+
+### Decision summary
+
+Use one authenticated shared MCP service backed by Redis. Developers keep separate checkouts and sessions; equivalent lookups can reuse the same raw result when repository, actual source/index snapshot, provider/tool, upstream arguments, and effective access scope match.
+
+Do not put developer username in every shared key or preview budget in the raw-result identity. Reauthorize every result/detail/page request. Dirty, unsaved, or unknown states bypass shared reuse; unsupported states do not silently fall back to committed HEAD. New revisions produce new keys. TTL is retention, not freshness.
+
+One service plus Redis is enough to demonstrate cross-developer reuse, without claiming high availability. Coalesce simultaneous misses and return explicit expiration for evicted detail handles. Do not share a live database file through OneDrive.
+
+## 13. Refactoring the project materials
+
+### User
+
+> We have now unamibgious problem statement. Let's reafactor the document/Readme/PPT to consider this statement.
+
+### Current scope and artifact direction
+
+The README, HLD, team handoff, interactive diagram, and all three decks are aligned to **shared tool-result caching plus token-efficient progressive disclosure**. Historical research remains labeled and accessible, rather than being rewritten to pretend it always described this solution.
+
+The recommended first provider wraps existing text search and source reads at a verified Git commit. It proves source identity and language-neutral result handling; it does not turn lexical matches into semantic references. The implementation still needs an actual service, access integration, Redis lifecycle, typed tool contracts, optimizer, and measurements.
+
+All current examples are proposals or illustrative arithmetic, not benchmarks. The video remains removed. Changes to local project files do not by themselves publish an update to GitHub.
